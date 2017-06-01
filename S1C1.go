@@ -8,6 +8,7 @@ import (
 )
 
 func main() {
+
 	boolPtr := flag.Bool("b64", false, "Convert base64 string to hex string (default is hex->base64)")
 	var svar string
 	flag.StringVar(&svar, "str", "deadbeef", "string to convert")
