@@ -27,9 +27,8 @@ func main() {
 
 	ans := set1.DetectSingleXOR(buffer)
 	decrypted := set1.BreakSingleByteXORCipher(ans)
-	decrypted = decrypted[:len(decrypted)-1]
 	fmt.Println("Encrypted string: ", set1.HexToStr(ans))
-	fmt.Println("Decrypted string: ", set1.ASCIIToStr(decrypted))
+	fmt.Println("Decrypted string: ", string(decrypted))
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
 	}

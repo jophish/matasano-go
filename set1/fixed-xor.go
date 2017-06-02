@@ -2,7 +2,9 @@ package set1
 
 import (
 	"errors"
+	"fmt"
 	"math"
+	"os"
 )
 
 // statistics are from here: fitaly.com/board/domper3/posts/b136.html
@@ -197,4 +199,60 @@ func DetectSingleXOR(buffer [][]byte) []byte {
 	}
 
 	return bestBuffer
+}
+
+// Given a buffer and a key, XORs the key with the buffer enough times
+// to completely XOR the buffer.
+func RepeatingXOR(buffer, key []byte) []byte {
+	output := make([]byte, len(buffer))
+	for i := 0; i < len(buffer); i++ {
+		output[i] = buffer[i] ^ key[i%len(key)]
+	}
+	return output
+}
+
+// Given a buffer encrypted with repeated-key XOR, breaks the encryption
+// and returns the decrypted buffer and the key
+func BreakRepeatingXOR(buffer []byte) ([]byte, []byte) {
+	return nil, nil
+}
+
+// Given two byte buffers, computes the Hamming Distance between them.
+// Expects that each buffer is the same length
+func HammingDistance(buffer1, buffer2 []byte) (uint32, error) {
+	var count uint32 = 0
+	if len(buffer1) != len(buffer2) {
+		return 0, errors.New("expected both buffers to have the same length!")
+	}
+	for i := 0; i < len(buffer1); i++ {
+		xor := buffer1[i] ^ buffer2[i]
+		for j := 1; j < 8; j++ {
+			count += uint32((xor << uint32(8-j)) >> 7)
+		}
+	}
+	return count, nil
+}
+
+// Given a buffer encrypted with repeating-key XOR, guesses the key size
+func GuessKeySize(buffer []byte) uint32 {
+	var minKeysize uint32 = 2
+	var maxKeysize uint32 = uint32(len(buffer) / 2)
+	var bestDistance float64 = float64(len(buffer) * 8)
+	var bestGuess uint32 = 4
+	fmt.Println(buffer)
+	for i := minKeysize; i < maxKeysize; i++ {
+		//fmt.Println(buffer[:i], buffer[i:2*i])
+		score, err := HammingDistance(buffer[:i], buffer[i:2*i])
+		var normalized float64 = float64(float64(score) / float64(i))
+		fmt.Println(normalized)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+		if normalized < bestDistance {
+			bestDistance = normalized
+			bestGuess = i
+		}
+	}
+	return uint32(bestGuess)
 }
