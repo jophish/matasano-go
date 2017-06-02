@@ -118,7 +118,7 @@ func XORBuffers(buffer1, buffer2 []byte) ([]byte, error) {
 	return output, nil
 }
 
-func DecryptSingleByteXORCipher(buffer []byte) []byte {
+func BreakSingleByteXORCipher(buffer []byte) []byte {
 	// try XORing with each character, maintain a dictionary mapping chars to freq scores,
 	// return the decryption using the character with the best score
 	//chars := "0123456789abcdef"
@@ -176,4 +176,25 @@ func GetByteFrequency(buffer []byte, char byte) float64 {
 		}
 	}
 	return float64(count / float64(len(buffer)))
+}
+
+// Given a buffer of byte arrays, where a single array is encrypted by
+// single character XOR, returns the array which is most likely encrypted.
+func DetectSingleXOR(buffer [][]byte) []byte {
+	var bestChi float64 = -1
+	var bestBuffer []byte
+
+	for i := 0; i < len(buffer); i++ {
+		plain := BreakSingleByteXORCipher(buffer[i])
+		chi := ChiSquaredPlaintext(plain)
+		if bestChi < 0 {
+			bestChi = chi
+		}
+		if chi < bestChi {
+			bestChi = chi
+			bestBuffer = buffer[i]
+		}
+	}
+
+	return bestBuffer
 }

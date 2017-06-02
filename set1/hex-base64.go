@@ -146,6 +146,7 @@ func HexToStr(hexStr []byte) string {
 // Given a byte array representing the ASCII encoding of a string, returns
 // the actual human-readable string
 func ASCIIToStr(str []byte) string {
+
 	var result string = ""
 	for i := 0; i < len(str); i++ {
 		result += string(ascii[str[i]-32])

@@ -14,7 +14,7 @@ func main() {
 		hexBuffer = set1.StrToHex(os.Args[1])
 	}
 
-	result := set1.DecryptSingleByteXORCipher(hexBuffer)
+	result := set1.BreakSingleByteXORCipher(hexBuffer)
 	fmt.Printf("%+q\n", result)
 
 }
