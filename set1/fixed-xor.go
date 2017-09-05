@@ -5,7 +5,37 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sort"
 )
+
+// We use Score and ScoreList to sort potential keysizes from
+// most-to-least likely
+type Score struct {
+	len   uint32
+	score float64
+}
+
+type ScoreList []Score
+
+func (s ScoreList) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s ScoreList) Len() int {
+	return len(s)
+}
+
+func (s ScoreList) Less(i, j int) bool {
+	return s[i].score < s[j].score
+}
+
+func (s ScoreList) ToList() []uint32 {
+	buffer := make([]uint32, s.Len())
+	for i := 0; i < s.Len(); i++ {
+		buffer[i] = s[i].len
+	}
+	return buffer
+}
 
 // statistics are from here: fitaly.com/board/domper3/posts/b136.html
 var frequencies = map[byte]float64{
@@ -120,7 +150,7 @@ func XORBuffers(buffer1, buffer2 []byte) ([]byte, error) {
 	return output, nil
 }
 
-func BreakSingleByteXORCipher(buffer []byte) []byte {
+func BreakSingleByteXORCipher(buffer []byte) ([]byte, byte) {
 	// try XORing with each character, maintain a dictionary mapping chars to freq scores,
 	// return the decryption using the character with the best score
 	//chars := "0123456789abcdef"
@@ -139,7 +169,7 @@ func BreakSingleByteXORCipher(buffer []byte) []byte {
 
 	}
 	result, _ := XORBufferWithChar(buffer, best)
-	return result
+	return result, best
 }
 
 // Given a byte buffer and a single byte, returns the byte array
@@ -187,7 +217,7 @@ func DetectSingleXOR(buffer [][]byte) []byte {
 	var bestBuffer []byte
 
 	for i := 0; i < len(buffer); i++ {
-		plain := BreakSingleByteXORCipher(buffer[i])
+		plain, _ := BreakSingleByteXORCipher(buffer[i])
 		chi := ChiSquaredPlaintext(plain)
 		if bestChi < 0 {
 			bestChi = chi
@@ -214,7 +244,70 @@ func RepeatingXOR(buffer, key []byte) []byte {
 // Given a buffer encrypted with repeated-key XOR, breaks the encryption
 // and returns the decrypted buffer and the key
 func BreakRepeatingXOR(buffer []byte) ([]byte, []byte) {
-	return nil, nil
+	keySizes := GuessKeySize(buffer)
+	//for each keysize, break into keysize chunks
+	var bestKey []byte
+	var bestChi float64 = -1
+
+	for keyIndex := 0; keyIndex < len(keySizes); keyIndex++ {
+		chunked := ChunkBuffer(buffer, keySizes[keyIndex])
+		transposed := TransposeChunks(chunked)
+
+		keyBuf := make([]byte, len(transposed))
+		for i := 0; i < len(transposed); i++ {
+			_, best := BreakSingleByteXORCipher(transposed[i])
+			keyBuf[i] = best
+		}
+		decrypted := RepeatingXOR(buffer, keyBuf)
+		testChi := ChiSquaredPlaintext(decrypted)
+
+		if testChi < bestChi || bestChi < 0 {
+			bestChi = testChi
+			bestKey = keyBuf
+		}
+	}
+
+	return RepeatingXOR(buffer, bestKey), bestKey
+}
+
+// Given a buffer and a length , will break the buffer up into
+// chunks of the given length
+func ChunkBuffer(buffer []byte, chunkLen uint32) [][]byte {
+	bufferArray := [][]byte{}
+	for i := 0; i < len(buffer); i += int(chunkLen) {
+		upperBound := i + int(chunkLen)
+		if upperBound >= len(buffer) {
+			upperBound = len(buffer)
+		}
+		chunk := buffer[i:upperBound]
+		bufferArray = append(bufferArray, chunk)
+	}
+	return bufferArray
+}
+
+// Given a buffer of arrays, returns an array of buffers
+// created by transposing the originals. For example,
+// [[1,2,3],[4,5,6],[7,8]] goes to
+// [[1,4,7],[2,5,8],[3,6]]
+func TransposeChunks(buffer [][]byte) [][]byte {
+	maxLenChunk := 0
+	for i := 0; i < len(buffer); i++ {
+		if len(buffer[i]) > maxLenChunk {
+			maxLenChunk = len(buffer[i])
+		}
+	}
+
+	bufferArray := [][]byte{}
+	for i := 0; i < maxLenChunk; i++ {
+		transposedChunk := []byte{}
+		for j := 0; j < len(buffer); j++ {
+			if i < len(buffer[j]) {
+				transposedChunk = append(transposedChunk, buffer[j][i])
+			}
+		}
+		bufferArray = append(bufferArray, transposedChunk)
+	}
+	return bufferArray
 }
 
 // Given two byte buffers, computes the Hamming Distance between them.
@@ -233,26 +326,24 @@ func HammingDistance(buffer1, buffer2 []byte) (uint32, error) {
 	return count, nil
 }
 
-// Given a buffer encrypted with repeating-key XOR, guesses the key size
-func GuessKeySize(buffer []byte) uint32 {
+// Given a buffer encrypted with repeating-key XOR, returns a list of keysizes
+// sorted form most-to-least likely
+func GuessKeySize(buffer []byte) []uint32 {
 	var minKeysize uint32 = 2
 	var maxKeysize uint32 = uint32(len(buffer) / 2)
-	var bestDistance float64 = float64(len(buffer) * 8)
-	var bestGuess uint32 = 4
-	fmt.Println(buffer)
+	maxKeysize = 40
+	scoreBuffer := make([]Score, maxKeysize-minKeysize)
 	for i := minKeysize; i < maxKeysize; i++ {
 		//fmt.Println(buffer[:i], buffer[i:2*i])
 		score, err := HammingDistance(buffer[:i], buffer[i:2*i])
 		var normalized float64 = float64(float64(score) / float64(i))
-		fmt.Println(normalized)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
-		if normalized < bestDistance {
-			bestDistance = normalized
-			bestGuess = i
-		}
+		scoreBuffer[i-minKeysize] = Score{i, normalized}
 	}
-	return uint32(bestGuess)
+	sort.Sort(ScoreList(scoreBuffer))
+
+	return ScoreList(scoreBuffer).ToList()
 }
