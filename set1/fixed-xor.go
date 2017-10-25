@@ -158,6 +158,7 @@ func BreakSingleByteXORCipher(buffer []byte) ([]byte, byte) {
 	var min float64 = -1
 	for i := 32; i <= 126; i++ {
 		XOR, _ := XORBufferWithChar(buffer, byte(i))
+
 		chi := ChiSquaredPlaintext(XOR)
 		if min < 0 {
 			min = chi
@@ -271,7 +272,7 @@ func BreakRepeatingXOR(buffer []byte) ([]byte, []byte) {
 }
 
 // Given a buffer and a length , will break the buffer up into
-// chunks of the given length
+// chunks of the given byte length
 func ChunkBuffer(buffer []byte, chunkLen uint32) [][]byte {
 	bufferArray := [][]byte{}
 	for i := 0; i < len(buffer); i += int(chunkLen) {
