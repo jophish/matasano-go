@@ -7,6 +7,60 @@ import (
 	"os"
 )
 
+// Given a plaintext which is a multiple of 16 bytes,
+// 16 byte initialization vector, and a 16 byte key,
+// returns the AES-128-ECB encrypted ciphertext, operating in
+// CBC mode.
+func AES_ECB_CBC_Encrypt(plaintext, key, iv []byte) []byte {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	bs := block.BlockSize()
+	ciphertext := []byte{}
+	prevVec := iv
+	for len(plaintext) > 0 {
+		// Before encrypting, each plaintext block should be XOR'd with the output
+		// of the previous encryption round. The very first plaintext block should
+		// instead be XOR'd with the given initialization vector.
+		chunk := make([]byte, block.BlockSize())
+		XORblock, _ := XORBuffers(plaintext[:bs], prevVec)
+		block.Encrypt(chunk, XORblock)
+		prevVec = chunk
+		ciphertext = append(ciphertext, chunk...)
+		plaintext = plaintext[bs:]
+	}
+	return ciphertext
+}
+
+// Given a ciphertext which is a multiple of 16 bytes, a
+// 16 byte key, and a 16 byte initialization vector, returns
+// the AES-128-ECB decrypted plaintext, operating in CBC mode
+func AES_ECB_CBC_Decrypt(ciphertext, key, iv []byte) []byte {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	bs := block.BlockSize()
+	plaintext := []byte{}
+	prevVec := iv
+	for len(ciphertext) > 0 {
+		chunk := make([]byte, bs)
+		block.Decrypt(chunk, ciphertext)
+		XORblock, err := XORBuffers(chunk, prevVec)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		plaintext = append(plaintext, XORblock...)
+		prevVec = ciphertext[:bs]
+		ciphertext = ciphertext[bs:]
+	}
+	return DepadPKCS(plaintext)
+}
+
 // Given a plaintext which is a multiple of 16 bytes and a
 // 16 byte key, returns the AES-128-ECB encrypted ciphertext
 func AES_ECB_Encrypt(plaintext, key []byte) []byte {
