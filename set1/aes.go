@@ -79,3 +79,20 @@ func DetectECB(buffer [][]byte) ([]byte, error) {
 
 	return nil, errors.New("No AES-ECB-128 array detected!")
 }
+
+// Given a buffer (a "block") and a length, pads the buffer
+// to the given length with \x04 bytes. `length` must be greater
+// than the size of the given buffer
+func PadPKCS7(buffer []byte, length int) ([]byte, error) {
+	if len(buffer) > length {
+		return nil, errors.New("Expected buffer to be less than or equal to given length!")
+	}
+	newBuf := make([]byte, length)
+	for i := 0; i < len(buffer); i++ {
+		newBuf[i] = buffer[i]
+	}
+	for i := len(buffer); i < len(newBuf); i++ {
+		newBuf[i] = byte(length - len(buffer))
+	}
+	return newBuf, nil
+}
