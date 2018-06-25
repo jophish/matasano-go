@@ -11,6 +11,6 @@ func main() {
 	ciphertext, _ := set1.Base64ToHex(hexBuf)
 	iv := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	key := set1.StrToASCII("YELLOW SUBMARINE")
-	plaintext := set1.AES_ECB_CBC_Decrypt(ciphertext, key, iv)
+	plaintext := set1.AES_CBC_Decrypt(ciphertext, key, iv)
 	fmt.Println(string(plaintext))
 }

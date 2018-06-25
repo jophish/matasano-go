@@ -2,16 +2,84 @@ package set1
 
 import (
 	"crypto/aes"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 )
+
+// Returns a buffer of len random bytes
+func RandomBytes(len int) []byte {
+	buf := make([]byte, len)
+	_, err := rand.Read(buf)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	return buf
+}
+
+// Given a plaintext, this function first pads it at the beginning and end with
+// 5-10 random bytes, (the SAME bytes, at the beginning and end), and encrypts it
+// with a random 16 byte key in ECB or CBC mode. If CBC mode is chosen, the IV is also
+// randomly initialized. The ciphertext is returned.
+func AES_EncryptionOracle(plaintext []byte) []byte {
+	// Frist, generate a 5-10 byte prefix/suffix
+	pre_len, _ := rand.Int(rand.Reader, big.NewInt(6))
+	prefix := make([]byte, pre_len.Int64()+5)
+	_, err := rand.Read(prefix)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	// Now, append and prepend
+	plaintext = append(plaintext, prefix...)
+	plaintext = append(prefix, plaintext...)
+
+	// AES requires a 16 byte aligned plaintext, so we have to pad
+	// to the closest 16 byte boundary
+	padlen := len(plaintext) + (16 - (len(plaintext) % 16))
+	plaintext, err = PadPKCS7(plaintext, padlen)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	// Generate a random key
+	key := RandomKey()
+	var ciphertext []byte
+
+	mode, _ := rand.Int(rand.Reader, big.NewInt(2))
+	if mode.Int64() == 0 {
+		// ECB mode
+		fmt.Println("We're encrypting with ECB mode")
+		ciphertext = AES_ECB_Encrypt(plaintext, key)
+	} else {
+		// CBC mode
+		fmt.Println("We're encrypting with CBC mode")
+		iv := RandomKey()
+		ciphertext = AES_CBC_Encrypt(plaintext, key, iv)
+	}
+
+	return ciphertext
+}
+
+// Returns a random 16 byte AES key
+func RandomKey() []byte {
+	key := make([]byte, 16)
+	_, err := rand.Read(key)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	return key
+}
 
 // Given a plaintext which is a multiple of 16 bytes,
 // 16 byte initialization vector, and a 16 byte key,
 // returns the AES-128-ECB encrypted ciphertext, operating in
 // CBC mode.
-func AES_ECB_CBC_Encrypt(plaintext, key, iv []byte) []byte {
+func AES_CBC_Encrypt(plaintext, key, iv []byte) []byte {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		fmt.Println(err)
@@ -37,7 +105,7 @@ func AES_ECB_CBC_Encrypt(plaintext, key, iv []byte) []byte {
 // Given a ciphertext which is a multiple of 16 bytes, a
 // 16 byte key, and a 16 byte initialization vector, returns
 // the AES-128-ECB decrypted plaintext, operating in CBC mode
-func AES_ECB_CBC_Decrypt(ciphertext, key, iv []byte) []byte {
+func AES_CBC_Decrypt(ciphertext, key, iv []byte) []byte {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		fmt.Println(err)
